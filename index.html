@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coworking Tracker</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont;
+  background: #0f172a;
+  color: white;
+  padding: 20px;
+}
+
+h1 {
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+
+.card {
+  background: #1e293b;
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.big {
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.label {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+input, button {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  margin-top: 8px;
+}
+
+input {
+  background: #334155;
+  color: white;
+}
+
+button {
+  background: #22c55e;
+  color: black;
+  font-weight: bold;
+}
+
+.progress {
+  height: 8px;
+  background: #334155;
+  border-radius: 10px;
+  margin-top: 10px;
+}
+
+.bar {
+  height: 8px;
+  border-radius: 10px;
+  background: #22c55e;
+}
+
+.warn { color: #f87171; }
+.ok { color: #4ade80; }
+</style>
+</head>
+
+<body>
+
+<h1>⏱ Coworking</h1>
+
+<div class="card">
+  <div class="label">Remaining</div>
+  <div id="remaining" class="big">18</div>
+
+  <div class="progress">
+    <div id="bar" class="bar"></div>
+  </div>
+
+  <div class="label" style="margin-top:10px;">Used</div>
+  <div id="total">0 hrs</div>
+
+  <div id="status"></div>
+</div>
+
+<div class="card">
+  <div class="label">📅 Smart Plan</div>
+  <div id="plan"></div>
+</div>
+
+<div class="card">
+  <input type="date" id="date">
+  <input type="number" id="hours" step="0.25" placeholder="Hours">
+  <button onclick="add()">Add Session</button>
+</div>
+
+<script>
+const LIMIT = 18;
+let entries = JSON.parse(localStorage.getItem("entries")) || [];
+
+function getCycleStart(d) {
+  let date = new Date(d);
+  let start = new Date(date.getFullYear(), date.getMonth(), 29);
+  if (date.getDate() < 29) {
+    start = new Date(date.getFullYear(), date.getMonth() - 1, 29);
+  }
+  return start;
+}
+
+function getCycleEnd(start) {
+  let end = new Date(start);
+  end.setMonth(end.getMonth() + 1);
+  return end;
+}
+
+function getCurrentEntries() {
+  const start = getCycleStart(new Date());
+  const end = getCycleEnd(start);
+
+  return entries.filter(e => {
+    const d = new Date(e.date);
+    return d >= start && d < end;
+  });
+}
+
+function render() {
+  const current = getCurrentEntries();
+  let total = current.reduce((s, e) => s + e.hours, 0);
+  let remaining = LIMIT - total;
+
+  document.getElementById("total").innerText = total.toFixed(2) + " hrs";
+  document.getElementById("remaining").innerText = remaining.toFixed(2);
+
+  // Progress bar
+  let percent = (total / LIMIT) * 100;
+  document.getElementById("bar").style.width = percent + "%";
+
+  // Status
+  let status = "";
+  if (remaining <= 0) status = "<span class='warn'>Over limit</span>";
+  else if (remaining <= 3) status = "<span class='warn'>Almost out</span>";
+  else status = "<span class='ok'>On track</span>";
+
+  document.getElementById("status").innerHTML = status;
+
+  // Smart Plan
+  const start = getCycleStart(new Date());
+  const end = getCycleEnd(start);
+  const daysLeft = (end - new Date()) / (1000*60*60*24);
+  const weeksLeft = daysLeft / 7;
+
+  let suggestion = weeksLeft > 0 ? remaining / weeksLeft : 0;
+
+  document.getElementById("plan").innerText =
+    suggestion.toFixed(2) + " hrs/week";
+
+  localStorage.setItem("entries", JSON.stringify(entries));
+}
+
+function add() {
+  const date = document.getElementById("date").value;
+  const hours = parseFloat(document.getElementById("hours").value);
+
+  if (!date || !hours) return alert("Fill fields");
+
+  entries.push({ date, hours });
+  render();
+}
+
+render();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+
+</body>
+</html>
