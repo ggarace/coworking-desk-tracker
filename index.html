@@ -5,19 +5,13 @@
 <title>Coworking Tracker</title>
 
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0f172a">
 
 <style>
 body {
-  font-family: -apple-system, BlinkMacSystemFont;
+  font-family: -apple-system;
   background: #0f172a;
   color: white;
   padding: 20px;
-}
-
-h1 {
-  font-size: 22px;
-  margin-bottom: 10px;
 }
 
 .card {
@@ -27,15 +21,8 @@ h1 {
   margin-bottom: 14px;
 }
 
-.big {
-  font-size: 36px;
-  font-weight: 700;
-}
-
-.label {
-  font-size: 13px;
-  opacity: 0.7;
-}
+.big { font-size: 34px; font-weight: bold; }
+.label { font-size: 12px; opacity: 0.7; }
 
 input, button {
   width: 100%;
@@ -45,16 +32,8 @@ input, button {
   margin-top: 8px;
 }
 
-input {
-  background: #334155;
-  color: white;
-}
-
-button {
-  background: #22c55e;
-  color: black;
-  font-weight: bold;
-}
+input { background: #334155; color: white; }
+button { background: #22c55e; color: black; font-weight: bold; }
 
 .progress {
   height: 8px;
@@ -76,7 +55,7 @@ button {
 
 <body>
 
-<h1>⏱ Coworking</h1>
+<h2>⏱ Coworking</h2>
 
 <div class="card">
   <div class="label">Remaining</div>
@@ -86,7 +65,7 @@ button {
     <div id="bar" class="bar"></div>
   </div>
 
-  <div class="label" style="margin-top:10px;">Used</div>
+  <div class="label">Used</div>
   <div id="total">0 hrs</div>
 
   <div id="status"></div>
@@ -95,12 +74,25 @@ button {
 <div class="card">
   <div class="label">📅 Smart Plan</div>
   <div id="plan"></div>
+  <div id="daily"></div>
 </div>
 
 <div class="card">
+  <div class="label">Log Session</div>
   <input type="date" id="date">
-  <input type="number" id="hours" step="0.25" placeholder="Hours">
+
+  <div class="label">Time In</div>
+  <input type="time" id="timeIn">
+
+  <div class="label">Time Out</div>
+  <input type="time" id="timeOut">
+
   <button onclick="add()">Add Session</button>
+</div>
+
+<div class="card">
+  <div class="label">📝 Recent Logs</div>
+  <div id="logs"></div>
 </div>
 
 <script>
@@ -132,19 +124,30 @@ function getCurrentEntries() {
   });
 }
 
+function computeHours(timeIn, timeOut) {
+  const [h1, m1] = timeIn.split(":").map(Number);
+  const [h2, m2] = timeOut.split(":").map(Number);
+
+  let start = h1 + m1 / 60;
+  let end = h2 + m2 / 60;
+
+  if (end < start) end += 24; // overnight safety
+
+  return end - start;
+}
+
 function render() {
   const current = getCurrentEntries();
+
   let total = current.reduce((s, e) => s + e.hours, 0);
   let remaining = LIMIT - total;
 
   document.getElementById("total").innerText = total.toFixed(2) + " hrs";
   document.getElementById("remaining").innerText = remaining.toFixed(2);
 
-  // Progress bar
-  let percent = (total / LIMIT) * 100;
-  document.getElementById("bar").style.width = percent + "%";
+  document.getElementById("bar").style.width =
+    ((total / LIMIT) * 100) + "%";
 
-  // Status
   let status = "";
   if (remaining <= 0) status = "<span class='warn'>Over limit</span>";
   else if (remaining <= 3) status = "<span class='warn'>Almost out</span>";
@@ -152,29 +155,55 @@ function render() {
 
   document.getElementById("status").innerHTML = status;
 
-  // Smart Plan
+  // Smart plan
   const start = getCycleStart(new Date());
   const end = getCycleEnd(start);
+
   const daysLeft = (end - new Date()) / (1000*60*60*24);
   const weeksLeft = daysLeft / 7;
 
-  let suggestion = weeksLeft > 0 ? remaining / weeksLeft : 0;
+  let weekly = weeksLeft > 0 ? remaining / weeksLeft : 0;
+  let daily = daysLeft > 0 ? remaining / daysLeft : 0;
 
   document.getElementById("plan").innerText =
-    suggestion.toFixed(2) + " hrs/week";
+    weekly.toFixed(2) + " hrs/week";
+
+  document.getElementById("daily").innerText =
+    "≈ " + daily.toFixed(2) + " hrs/day";
+
+  // Logs
+  let logHTML = "";
+  current.slice(-5).reverse().forEach(e => {
+    logHTML += `<div>${e.date} (${e.timeIn} - ${e.timeOut}) = ${e.hours.toFixed(2)}h</div>`;
+  });
+
+  document.getElementById("logs").innerHTML = logHTML;
 
   localStorage.setItem("entries", JSON.stringify(entries));
 }
 
 function add() {
   const date = document.getElementById("date").value;
-  const hours = parseFloat(document.getElementById("hours").value);
+  const timeIn = document.getElementById("timeIn").value;
+  const timeOut = document.getElementById("timeOut").value;
 
-  if (!date || !hours) return alert("Fill fields");
+  if (!date || !timeIn || !timeOut) {
+    alert("Complete all fields");
+    return;
+  }
 
-  entries.push({ date, hours });
+  const hours = computeHours(timeIn, timeOut);
+
+  entries.push({ date, timeIn, timeOut, hours });
   render();
 }
+
+// gentle reminder
+setTimeout(() => {
+  if (confirm("Did you use coworking today? Log it now.")) {
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+}, 2000);
 
 render();
 
